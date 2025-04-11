@@ -21,23 +21,68 @@ import hashlib
 import imagehash
 import cv2
 import argparse
+import urllib.request
 
-# Configurable perceptual hash threshold for near-duplicate detection
-NEAR_DUPLICATE_THRESHOLD = 5
 
 # Setup paths
 # SOURCE_DIR = "/Volumes/NFP4TBSSD/pyton_photos/Photos_Base"
 # DEST_DIR = "/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Organized"
 # CONFIG_FILE = "cfg/organize_config.json"
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+TEST_MOMENT = False # True for test, False for full dataset - CHANGE MANUALLY
 
 def parse_args():
+    '''
+    Parse command line arguments.
+    Returns:
+    argparse.Namespace: Parsed arguments including source, destination, config file, verbosity level, and near-duplicate threshold.
+    '''
+    # Create arguments parser
     parser = argparse.ArgumentParser(description="Organize media files.")
-    parser.add_argument("--source", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base")
-    parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Organized")
-    parser.add_argument("--config", type=str, default="cfg/organize_config.json")
+    
+    # Local data Folders
+    test = TEST_MOMENT  # True for test, False for full dataset - CHANGE MANUALLY
+    if test:
+        # Folders for the test dataset
+        parser.add_argument("--source", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Subset") # Local Filepath
+        parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Subset_Organized") # Local Filepath
+    else:
+        # Folders for the full dataset
+        parser.add_argument("--source", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Test") # Local Filepath
+        parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Organized_Test") # Local Filepath
+        
+    # configurations
+    parser.add_argument("--config", type=str, default=os.path.join(ROOT_DIR, "cfg", "organize_config.json"), help="Path to the config file")
     parser.add_argument("--verbose", type=int, default=2, help="Verbosity level (0 = no output, >0 = detailed output)")
     parser.add_argument("--near_duplicate_threshold", type=int, default=5, help="Threshold for near-duplicate detection")
+    parser.add_argument("--processed_files_hash", type=str, default=os.path.join(ROOT_DIR, "cfg", "processed_files_hash.json"), help="Path to the processed files JSON file")
+    parser.add_argument("--labels_path_url", type=str, default="https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt", help="URL to download the labels file")
+    parser.add_argument("--labels_path_local", type=str, default=os.path.join(ROOT_DIR, "data", "imagenet_classes.txt"), help="Local path to the labels file")
+    
     return parser.parse_args()
+
+def load_processed_hashes(processed_hashes_file):
+    '''
+    Load the processed file hashes from a JSON file.
+    Parameters:
+    processed_hashes_file (str): Path to the JSON file containing processed file hashes.
+    Returns:
+    set: Set of processed file hashes. If the file does not exist, return an empty set.
+    '''
+    if os.path.exists(processed_hashes_file):
+        with open(processed_hashes_file, "r") as f:
+            return set(json.load(f))
+    return set()
+
+def save_processed_hashes(processed_hashes, processed_hashes_file):
+    '''
+    Save the processed file hashes to a JSON file.
+    Parameters:
+    processed_hashes (set): Set of processed file hashes to save.
+    processed_hashes_file (str): Path to the JSON file to save the hashes.
+    '''
+    with open(processed_hashes_file, "w") as f:
+        json.dump(list(processed_hashes), f, indent=2)
 
 # Load or initialize configuration
 def load_config(config_file):
@@ -80,21 +125,15 @@ def is_video(file):
     '''
     return file.lower().endswith((".mp4", ".mov", ".avi", ".mkv", ".wmv"))
 
-def load_model():
+def load_model(labels_path_local, labels_path_url):
     '''
     Load a pre-trained image classification model and labels.
     Returns:
     tuple: A tuple containing the model and labels.
     '''
-    LABELS_PATH_URL = "https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt"
-    LABELS_PATH_LOCAL = "data/imagenet_classes.txt"
+
     model = timm.create_model("resnet50", pretrained=True)
     model.eval()
-    
-    # Move model to GPU if available
-    #if torch.cuda.is_available():
-    #    model = model.cuda()
-    #    print("Model moved to GPU.")
     
     # Move model to GPU if available (MPS for Apple Silicon)
     if torch.cuda.is_available():
@@ -104,17 +143,14 @@ def load_model():
     else:
         device = torch.device("cpu")
     model = model.to(device)
-    #input_tensor = input_tensor.to(device)  # ✅ Move input to the same device
-    
+
     print(f"Model moved to {device}.")
 
-    labels_path = "imagenet_classes.txt"
-    if not os.path.exists(LABELS_PATH_LOCAL):
-        import urllib.request
-        urllib.request.urlretrieve(LABELS_PATH_URL, labels_path)
-        print(f"Downloaded labels to {LABELS_PATH_LOCAL}")
+    if not os.path.exists(labels_path_local):
+        urllib.request.urlretrieve(labels_path_url, labels_path_local)
+        print(f"Downloaded labels to {labels_path_local}")
     
-    with open(LABELS_PATH_LOCAL) as f:
+    with open(labels_path_local) as f:
         labels = [line.strip() for line in f.readlines()]
     return model, labels, device
 
@@ -274,10 +310,16 @@ def organize_media(verbose=2, dry_run=False):
     SOURCE_DIR = args.source
     DEST_DIR = args.dest
     CONFIG_FILE = args.config
+    PROCESSED_HASHES_FILE = args.processed_files_hash
+    LABELS_PATH_URL = args.labels_path_url
+    LABELS_PATH_LOCAL = args.labels_path_local
     verbose = args.verbose
-
+    
+    # load list of processed files
+    processed_hashes = load_processed_hashes(PROCESSED_HASHES_FILE)
+    
     # load model
-    model, labels, device = load_model()
+    model, labels, device = load_model(LABELS_PATH_LOCAL, LABELS_PATH_URL)
     config = load_config(CONFIG_FILE)
     
     # load config
@@ -316,6 +358,13 @@ def organize_media(verbose=2, dry_run=False):
                 continue
             try:
                 fhash = file_hash(file_path)
+                
+                # Skip if file hash exists in processed hashes file
+                if fhash in processed_hashes:
+                    print(f"Skipping already processed: {file_path}")
+                    count_files['files_skipped'] += 1
+                    continue
+                
                 if fhash in hashes:
                     dup_dest = os.path.join(DEST_DIR, "duplicated")
                     os.makedirs(dup_dest, exist_ok=True)
@@ -395,6 +444,7 @@ def organize_media(verbose=2, dry_run=False):
                     print(f"Copied: {file_path} -> {os.path.join(base_dest, new_name)}")
                 else:
                     print(f"[Dry Run] Would copy: {file_path} -> {os.path.join(base_dest, new_name)}")
+                    
 
             except StopIteration:
                 continue
@@ -408,13 +458,19 @@ def organize_media(verbose=2, dry_run=False):
                 else:
                     print(f"[Dry Run] Error processing {file_path}: {e}")
 
+    # save processed hashes in hashes file
+    save_processed_hashes(hashes, PROCESSED_HASHES_FILE)
+
+    # save counters in config file
     config["pic_counter"] = pic_counter
     config["vid_counter"] = vid_counter
     save_config(config, CONFIG_FILE)
     
-    # time it
+    # time it (END)
     end_time = time.time()
     duration = end_time - start_time
+    # Print Summary Report
+    print("\nSummary Report:")
     print(f"\nFinished in {duration/60:.2f} minutes.")
     print("Summary Report:")
     for k, v in count_files.items():

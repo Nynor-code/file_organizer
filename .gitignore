@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# volatil configuration files
+cfg/organized_config.json
+cfg/processed_files_hash.json

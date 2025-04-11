@@ -4,12 +4,14 @@ This Python script organizes images and videos by date and event, renames them s
 
 ## 📁 Features
 
-- 🗃️ Organizes files into `/destination/YYYY-MM-DD/EventName`
+- 🗃️ Organizes files into `/destination/YYYY/MM-DD/EventName`
 - 🧠 Labels images using a pretrained ResNet-50 model
 - 🔒 Detects exact duplicates using SHA-256
 - 🧬 Detects near-duplicates (images & videos) using perceptual hashing
 - 📝 Stores rename counters in `organize_config.json`
 - 🎥 Uses multiple video frames to improve duplicate accuracy
+- 🛠️ Dry run mode to test before going live
+- 🚀 Ski treating same images on different batches storing the list of processed hashes
 
 ## 🛠️ Requirements
 
@@ -28,16 +30,22 @@ Run the script:
 ```bash
 python organize_media.py
 ```
+or run
+
+```bash
+make run
+```
 Sorted files will be moved to /destination.
 
 ## 🧾 Output Structure
 
 ```plaintext
 /destination/
-├── 2024-03-10/
-│   └── Birthday/
-│       ├── pict00001_dog.jpg
-│       └── vid00001_party.mp4
+├── 2024-
+│   └── 03-10/
+│       └── Birthday/
+│           ├── pict00001_dog.jpg
+│           └── vid00001_party.mp4
 ├── duplicated/
 ├── near_duplicated/
 └── noevaluate/
@@ -80,7 +88,7 @@ Renamed:  pict00012_golden_retriever.jpg
 - **Exact duplicates**: Detected with `SHA-256` file hash
 - **Near-duplicates**:
   - Images: `imagehash.phash`
-  - Videos: Sample 3 frames → compute average perceptual hash
+  - Videos: Sample 5 frames → compute average perceptual hash
 
 These are moved to:
 ```
