@@ -48,8 +48,8 @@ def parse_args():
         parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Subset_Organized") # Local Filepath
     else:
         # Folders for the full dataset
-        parser.add_argument("--source", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Test") # Local Filepath
-        parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Organized_Test") # Local Filepath
+        parser.add_argument("--source", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base") # Local Filepath
+        parser.add_argument("--dest", type=str, default="/Volumes/NFP4TBSSD/pyton_photos/Photos_Base_Organized") # Local Filepath
         
     # configurations
     parser.add_argument("--config", type=str, default=os.path.join(ROOT_DIR, "cfg", "organize_config.json"), help="Path to the config file")
