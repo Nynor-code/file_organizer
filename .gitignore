@@ -174,5 +174,5 @@ cython_debug/
 .pypirc
 
 # volatil configuration files
-cfg/organized_config.json
+cfg/organize_config.json
 cfg/processed_files_hash.json
